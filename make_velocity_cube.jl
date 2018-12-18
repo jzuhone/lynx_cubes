@@ -2,6 +2,7 @@ using FITSIO
 using HDF5
 using StatsBase
 using LinearAlgebra
+using ProgressMeter
 
 reblock = 1
 
@@ -35,12 +36,18 @@ ybins = collect(range(ymin, stop=ymax, length=ny+1))
 
 rmffile = header["RESPFILE"]
 
+mat = -1
+rmf_header = nothing
 rmf = FITS(rmffile)
 for i in 1:length(rmf)
+    global mat
+    global rmf_header
     rmf_header = read_header(rmf[i])
-    if occursin("MATRIX", rmf_header["EXTNAME"])
-        mat = i 
-        break
+    if haskey(rmf_header, "EXTNAME")
+        if occursin("MATRIX", rmf_header["EXTNAME"])
+            mat = i 
+            break
+        end
     end
 end
 elo = read(rmf[mat], "ENERG_LO")
@@ -55,7 +62,7 @@ cmax = cbins[ehi .< emax][end]
 
 chan = read(hdu, header["CHANTYPE"])
 
-cidxs = (chan .> cmin) & (chan .< cmax)
+cidxs = (chan .> cmin) .& (chan .< cmax)
 
 x = read(hdu, "X")[cidxs]
 y = read(hdu, "Y")[cidxs]
@@ -69,28 +76,52 @@ th = h5open("spec_table.h5", "r")
 kT = read(th, "kT")
 vel = read(th, "vel")
 # Must filter the spectrum part on the channels as above
-m = read(th, "spec_table")[[cmin:cmax,:,:]]
+m = read(th, "spec_table")[cmin:cmax,:,:]
 close(th)
 
-A = sum(spect, dims=1)
+A = sum(m, dims=1)
 logm = log.(m ./ A)
 
 nT = length(kT)
 nv = length(vel)
-nc = size(spect)[1]
+nc = size(m)[1]
 
 cube = zeros((nx,ny,nv))
+maxv = zeros((nx,ny))
+cts = zeros((nx,ny))
 
 for i in 1:nx
-    pidxs = (x >= xbins[i]) & (x <= xbins[i+1])
+    p = Progress(nx, 1)
+    xidxs = (x .>= xbins[i]) .& (x .<= xbins[i+1])
     for j in 1:ny
-        pidxs = pidxs & (y >= ybins[j]) & (y <= ybins[j+1])
+        pidxs = xidxs .& (y .>= ybins[j]) .& (y .<= ybins[j+1])
         if sum(pidxs) != 0
             n = counts(chan[pidxs], cmin:cmax)
+            cts[i,j] = sum(n)
             lnL = sum(n .* logm, dims=1)[1,:,:]
             Lv = maximum(lnL, dims=2)[:,1]
-            # This next step is likely incorrect
             cube[i,j,:] = Lv
+            maxv[i,j] = maximum(Lv)
         end
     end
+    next!(p)
 end
+
+angle = split(evtfile, ".")[1][end-3:end]
+
+velfile = "cgols_vel_$angle.fits"
+cubefile = "cgols_cube_$angle.fits"
+ctsfile =  "cgols_cts_$angle.fits"
+
+cubef = FITS(cubefile, "w")
+write(cubef, cube)
+close(cubef)
+
+velf = FITS(velfile, "w")
+write(velf, maxv)
+close(velf)
+
+ctsf = FITS(ctsfile, "w")
+write(ctsf, cts)
+close(ctsf)
+
