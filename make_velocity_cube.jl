@@ -2,14 +2,16 @@ using FITSIO
 using HDF5
 using StatsBase
 using LinearAlgebra
-using ProgressMeter
+using CSV
 
 reblock = 1
 
 emin = 0.3
 emax = 1.0
 
-evtfile = "cgols_evt_0deg.fits"
+evtfile = "cgols_evt_90deg.fits"
+
+angle = split(split(evtfile, ".")[1], "_")[end]
 
 # Open event file 
 
@@ -90,25 +92,37 @@ cube = zeros((nx,ny,nv))
 maxv = zeros((nx,ny))
 cts = zeros((nx,ny))
 
-for i in 1:nx
-    p = Progress(nx, 1)
+lnL = fill(0.0, nv, nT)
+
+lfile = "cgols_L_$angle.fits"
+
+for i in [62]
+    println("i = $i")
     xidxs = (x .>= xbins[i]) .& (x .<= xbins[i+1])
-    for j in 1:ny
+    for j in [60]
         pidxs = xidxs .& (y .>= ybins[j]) .& (y .<= ybins[j+1])
         if sum(pidxs) != 0
             n = counts(chan[pidxs], cmin:cmax)
+            tbl = (chan=cmin:cmax, counts=n)
+            tbl |> CSV.write("spec.tab"; delim="\t")
             cts[i,j] = sum(n)
-            lnL = sum(n .* logm, dims=1)[1,:,:]
+            @inbounds for iv in 1:nv
+                for iT in 1:nT
+                    lnL[iv,iT] += sum(n .* logm[:,iv,iT])
+                end
+            end
+            lf = FITS(lfile, "w")
+            write(lf, lnL)
+            close(lf)
             Lv = maximum(lnL, dims=2)[:,1]
-            cube[i,j,:] = Lv
-            maxv[i,j] = maximum(Lv)
+            cube[i,j,:] = exp.(Lv[:])
+            maxv[i,j] = vel[argmax(Lv)]
+            lnL[:,:] .= 0.0
         end
     end
-    next!(p)
 end
 
-angle = split(evtfile, ".")[1][end-3:end]
-
+"""
 velfile = "cgols_vel_$angle.fits"
 cubefile = "cgols_cube_$angle.fits"
 ctsfile =  "cgols_cts_$angle.fits"
@@ -124,4 +138,4 @@ close(velf)
 ctsf = FITS(ctsfile, "w")
 write(ctsf, cts)
 close(ctsf)
-
+"""
