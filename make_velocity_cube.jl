@@ -7,7 +7,7 @@ using CSV
 reblock = 1
 
 emin = 0.3
-emax = 1.0
+emax = 0.92
 
 evtfile = "cgols_evt_90deg.fits"
 
@@ -80,6 +80,7 @@ vel = read(th, "vel")
 # Must filter the spectrum part on the channels as above
 m = read(th, "spec_table")[cmin:cmax,:,:]
 close(th)
+println("$cmin, $cmax")
 
 A = sum(m, dims=1)
 logm = log.(m ./ A)
@@ -96,33 +97,33 @@ lnL = fill(0.0, nv, nT)
 
 lfile = "cgols_L_$angle.fits"
 
-for i in [62]
+for i in 1:nx
     println("i = $i")
     xidxs = (x .>= xbins[i]) .& (x .<= xbins[i+1])
-    for j in [60]
+    for j in 1:ny
         pidxs = xidxs .& (y .>= ybins[j]) .& (y .<= ybins[j+1])
         if sum(pidxs) != 0
             n = counts(chan[pidxs], cmin:cmax)
-            tbl = (chan=cmin:cmax, counts=n)
-            tbl |> CSV.write("spec.tab"; delim="\t")
+            #tbl = (chan=cmin:cmax, counts=n)
+            #tbl |> CSV.write("spec.tab"; delim="\t")
             cts[i,j] = sum(n)
             @inbounds for iv in 1:nv
                 for iT in 1:nT
                     lnL[iv,iT] += sum(n .* logm[:,iv,iT])
                 end
             end
-            lf = FITS(lfile, "w")
-            write(lf, lnL)
-            close(lf)
+            #println(argmax(lnL))
+            #lf = FITS(lfile, "w")
+            #write(lf, lnL)
+            #close(lf)
             Lv = maximum(lnL, dims=2)[:,1]
-            cube[i,j,:] = exp.(Lv[:])
+            cube[i,j,:] = Lv[:]
             maxv[i,j] = vel[argmax(Lv)]
             lnL[:,:] .= 0.0
         end
     end
 end
 
-"""
 velfile = "cgols_vel_$angle.fits"
 cubefile = "cgols_cube_$angle.fits"
 ctsfile =  "cgols_cts_$angle.fits"
@@ -138,4 +139,3 @@ close(velf)
 ctsf = FITS(ctsfile, "w")
 write(ctsf, cts)
 close(ctsf)
-"""
