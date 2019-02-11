@@ -9,9 +9,12 @@ reblock = 1
 emin = 0.3
 emax = 0.92
 
-evtfile = "cgols_evt_90deg.fits"
+basenm = "f4"
+angle = "90"
 
-angle = split(split(evtfile, ".")[1], "_")[end]
+evtfile = "$(basenm)_evt_$(angle)deg.fits"
+
+#angle = split(split(evtfile, ".")[1], "_")[end]
 
 # Open event file 
 
@@ -124,9 +127,11 @@ for i in 1:nx
     end
 end
 
-velfile = "cgols_vel_$angle.fits"
-cubefile = "cgols_cube_$angle.fits"
-ctsfile =  "cgols_cts_$angle.fits"
+cube .-= minimum(cube, dims=1)
+
+velfile = "cgols_vel_$(angle)deg.fits"
+cubefile = "cgols_cube_$(angle)deg.fits"
+ctsfile =  "cgols_cts_$(angle)deg.fits"
 
 cubef = FITS(cubefile, "w")
 write(cubef, cube)
