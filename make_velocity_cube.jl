@@ -2,7 +2,6 @@ using FITSIO
 using HDF5
 using StatsBase
 using LinearAlgebra
-using CSV
 
 reblock = 1
 
@@ -13,8 +12,6 @@ basenm = "f4"
 angle = "90"
 
 evtfile = "$(basenm)_evt_$(angle)deg.fits"
-
-#angle = split(split(evtfile, ".")[1], "_")[end]
 
 # Open event file 
 
@@ -80,6 +77,7 @@ close(evtf)
 th = h5open("spec_table.h5", "r")
 kT = read(th, "kT")
 vel = read(th, "vel")
+
 # Must filter the spectrum part on the channels as above
 m = read(th, "spec_table")[cmin:cmax,:,:]
 close(th)
@@ -107,18 +105,12 @@ for i in 1:nx
         pidxs = xidxs .& (y .>= ybins[j]) .& (y .<= ybins[j+1])
         if sum(pidxs) != 0
             n = counts(chan[pidxs], cmin:cmax)
-            #tbl = (chan=cmin:cmax, counts=n)
-            #tbl |> CSV.write("spec.tab"; delim="\t")
             cts[i,j] = sum(n)
             @inbounds for iv in 1:nv
                 for iT in 1:nT
                     lnL[iv,iT] += sum(n .* logm[:,iv,iT])
                 end
             end
-            #println(argmax(lnL))
-            #lf = FITS(lfile, "w")
-            #write(lf, lnL)
-            #close(lf)
             Lv = maximum(lnL, dims=2)[:,1]
             cube[i,j,:] = Lv[:]
             maxv[i,j] = vel[argmax(Lv)]
