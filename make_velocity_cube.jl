@@ -127,7 +127,7 @@ for i in 1:nx
     end
 end
 
-cube .-= minimum(cube, dims=1)
+cube .-= minimum(cube, dims=3)
 
 velfile = "cgols_vel_$(angle)deg.fits"
 cubefile = "cgols_cube_$(angle)deg.fits"
